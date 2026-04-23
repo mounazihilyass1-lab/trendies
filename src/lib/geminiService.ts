@@ -17,19 +17,17 @@ function getAI() {
 
 export async function generateSuggestions(): Promise<string[]> {
   const ai = getAI();
-  if (!ai) throw new Error("AI Service not configured: Please add GEMINI_API_KEY to your settings.");
+  if (!ai) throw new Error("AI Service not configured: Please add GEMINI_API_KEY to your project settings.");
 
   try {
     const model = ai.getGenerativeModel({ 
       model: "gemini-1.5-flash",
-      generationConfig: {
-        responseMimeType: "application/json",
-      }
     });
 
     const prompt = `Génère une liste de 5 sujets de tendances actuelles MAJEURES sur les réseaux sociaux francophones (TikTok, Twitter, Instagram). 
-    Utilise tes outils de recherche pour trouver des événements réels de moins de 24h.
-    Retourne uniquement un tableau JSON de chaînes de caractères (ex: ["Sujet 1", "Sujet 2"]).`;
+    Utilise Google Search pour trouver des événements réels de moins de 24h.
+    Réponds uniquement avec un tableau JSON de chaînes de caractères.
+    Exemple de format: ["Sujet 1", "Sujet 2", "Sujet 3", "Sujet 4", "Sujet 5"]`;
     
     const result = await model.generateContent({
       contents: [{ role: "user", parts: [{ text: prompt }] }],
@@ -38,10 +36,12 @@ export async function generateSuggestions(): Promise<string[]> {
 
     const response = await result.response;
     const text = response.text();
-    console.log("AI Suggestions Response:", text);
+    console.log("AI Raw Suggestions:", text);
     
-    // Clean potential markdown blocks if AI didn't follow JSON only instruction
-    const cleanJson = text.replace(/```json|```/g, "").trim();
+    // Improved cleaning for JSON
+    const jsonMatch = text.match(/\[.*\]/s);
+    const cleanJson = jsonMatch ? jsonMatch[0] : text.replace(/```json|```/g, "").trim();
+    
     return JSON.parse(cleanJson);
   } catch (err: any) {
     console.error("AI Suggestions Error:", err);
@@ -61,14 +61,11 @@ export interface GeneratedArticle {
 
 export async function generateArticle(topic: string, imageBase64?: string, imageMime?: string): Promise<GeneratedArticle> {
   const ai = getAI();
-  if (!ai) throw new Error("AI Service not configured: Please add GEMINI_API_KEY to your settings.");
+  if (!ai) throw new Error("AI Service not configured: Please add GEMINI_API_KEY to your project settings.");
 
   try {
     const model = ai.getGenerativeModel({ 
       model: "gemini-1.5-flash",
-      generationConfig: {
-        responseMimeType: "application/json",
-      }
     });
 
     const parts: any[] = [];
@@ -80,17 +77,17 @@ export async function generateArticle(topic: string, imageBase64?: string, image
           mimeType: imageMime
         }
       });
-      parts.push({ text: `Analyse cette image et rédige un article journalistique complet sur ce sujet : "${topic}".` });
+      parts.push({ text: `ANALYSE CETTE IMAGE et rédige un article journalistique de 600 mots sur : "${topic}".` });
     } else {
-      parts.push({ text: `Rédige un article journalistique complet sur le sujet tendance suivant : "${topic}".` });
+      parts.push({ text: `Rédige un article journalistique de 600 mots sur le sujet tendance : "${topic}".` });
     }
     
     parts.push({ text: `
-    Instructions Article:
-    1. Utilise Google Search pour des faits et actus RÉCENTES.
-    2. Format Markdown pour "content".
-    3. REFORMULE TOUT (Zéro Plagiat). 
-    4. Réponds en JSON suivant ce schéma: { title, content, summary, category, platforms: [], tags: [] }` 
+    STRICT INSTRUCTIONS:
+    1. Utilise Google Search pour trouver des faits RÉCENTS.
+    2. Format Markdown pour le champ "content".
+    3. REFORMULE TOUT (Contenu 100% original).
+    4. Réponds UNIQUEMENT en JSON: { "title": "...", "content": "...", "summary": "...", "category": "...", "platforms": [], "tags": [] }` 
     });
 
     const result = await model.generateContent({
@@ -100,7 +97,11 @@ export async function generateArticle(topic: string, imageBase64?: string, image
 
     const response = await result.response;
     const text = response.text();
-    const cleanJson = text.replace(/```json|```/g, "").trim();
+    console.log("AI Raw Article:", text);
+    
+    const jsonMatch = text.match(/\{.*\}/s);
+    const cleanJson = jsonMatch ? jsonMatch[0] : text.replace(/```json|```/g, "").trim();
+    
     return JSON.parse(cleanJson) as GeneratedArticle;
   } catch (err: any) {
     console.error("AI Article Error:", err);
