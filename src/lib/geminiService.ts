@@ -28,25 +28,23 @@ export async function generateSuggestions(): Promise<string[]> {
   if (!ai) throw new Error("AI Service not configured: Please add GEMINI_API_KEY to your project settings.");
 
   try {
-    const model = ai.getGenerativeModel({ 
-      model: "gemini-1.5-flash",
-    });
-
     const prompt = `Génère une liste de 5 sujets de tendances actuelles MAJEURES sur les réseaux sociaux francophones (TikTok, Twitter, Instagram). 
     Utilise Google Search pour trouver des événements réels de moins de 24h.
     Réponds uniquement avec un tableau JSON de chaînes de caractères.
     Exemple de format: ["Sujet 1", "Sujet 2", "Sujet 3", "Sujet 4", "Sujet 5"]`;
     
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      tools: [{ googleSearch: {} } as any],
+    const response = await ai.models.generateContent({
+      model: "gemini-flash-latest",
+      contents: prompt,
+      config: {
+        tools: [{ googleSearch: {} } as any],
+        responseMimeType: "application/json",
+      }
     });
 
-    const response = await result.response;
-    const text = response.text();
+    const text = response.text || "";
     console.log("AI Raw Suggestions:", text);
     
-    // Improved cleaning for JSON
     const jsonMatch = text.match(/\[.*\]/s);
     const cleanJson = jsonMatch ? jsonMatch[0] : text.replace(/```json|```/g, "").trim();
     
@@ -72,10 +70,6 @@ export async function generateArticle(topic: string, imageBase64?: string, image
   if (!ai) throw new Error("AI Service not configured: Please add GEMINI_API_KEY to your project settings.");
 
   try {
-    const model = ai.getGenerativeModel({ 
-      model: "gemini-1.5-flash",
-    });
-
     const parts: any[] = [];
     
     if (imageBase64 && imageMime) {
@@ -98,13 +92,16 @@ export async function generateArticle(topic: string, imageBase64?: string, image
     4. Réponds UNIQUEMENT en JSON: { "title": "...", "content": "...", "summary": "...", "category": "...", "platforms": [], "tags": [] }` 
     });
 
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts }],
-      tools: [{ googleSearch: {} } as any],
+    const response = await ai.models.generateContent({
+      model: "gemini-flash-latest",
+      contents: { parts },
+      config: {
+        tools: [{ googleSearch: {} } as any],
+        responseMimeType: "application/json",
+      }
     });
 
-    const response = await result.response;
-    const text = response.text();
+    const text = response.text || "";
     console.log("AI Raw Article:", text);
     
     const jsonMatch = text.match(/\{.*\}/s);
