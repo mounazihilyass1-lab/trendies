@@ -5,19 +5,19 @@ let aiInstance: GoogleGenAI | null = null;
 
 function getAI() {
   if (!aiInstance) {
-    // Consolidated way to get the key from Vite's defined constants or env
+    // Try every possible way to get the key
     const apiKey = 
-      (typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) || 
-      (typeof process !== 'undefined' && process.env?.GEMINI_API_KEY1) ||
-      (import.meta.env?.VITE_GEMINI_API_KEY) ||
+      process.env.GEMINI_API_KEY || 
+      process.env.GEMINI_API_KEY1 || 
+      (import.meta.env.VITE_GEMINI_API_KEY as string) || 
       "";
 
-    if (!apiKey || apiKey === "MY_GEMINI_API_KEY" || apiKey.length < 10) {
-      console.warn("AI Key Missing: Please ensure GEMINI_API_KEY or GEMINI_API_KEY1 is set in Environment Variables.");
+    if (!apiKey || apiKey.length < 10) {
+      console.warn("AI Service error: No valid API key found. Please check your Environment Variables.");
       return null;
     }
     
-    console.log("AI Service initialized with key ending in: ..." + apiKey.slice(-4));
+    console.log("AI Service: Successfully connected (Key detected)");
     aiInstance = new GoogleGenAI({ apiKey });
   }
   return aiInstance;
