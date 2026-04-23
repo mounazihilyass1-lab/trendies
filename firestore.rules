@@ -26,8 +26,16 @@ service cloud.firestore {
     match /articles/{articleId} {
       allow read: if true;
       allow create: if isAuthenticated() && isValidArticle(request.resource.data);
-      allow update: if isAuthenticated() && isValidArticle(request.resource.data);
+      allow update: if (isAuthenticated() && isValidArticle(request.resource.data))
+                   || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views']))
+                   || (resource.data == null); // Safety for new docs
       allow delete: if isAuthenticated();
+    }
+
+    match /site_stats/{statId} {
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasOnly(['totalVisits']);
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['totalVisits']);
     }
   }
 }

@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { generateSuggestions, generateArticle } from '../lib/geminiService';
-import { collection, addDoc, serverTimestamp, query, orderBy, getDocs, deleteDoc, updateDoc, doc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, orderBy, getDocs, deleteDoc, updateDoc, doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Sparkles, Loader2, Plus, RefreshCw, Upload, X, LogOut, FileText, Settings, Trash2, Edit } from 'lucide-react';
+import { Sparkles, Loader2, Plus, RefreshCw, Upload, X, LogOut, FileText, Settings, Trash2, Edit, BarChart3, Eye } from 'lucide-react';
 
 interface ArticleData {
   id: string;
@@ -11,6 +11,7 @@ interface ArticleData {
   imageUrl?: string;
   imageUrls?: string[];
   publishedAt?: number;
+  views?: number;
 }
 
 const compressImage = (file: File): Promise<string> => {
@@ -44,7 +45,7 @@ const compressImage = (file: File): Promise<string> => {
 };
 
 export default function AdminDashboard({ onLogout }: { onLogout?: () => void }) {
-  const [activeTab, setActiveTab] = useState<'ai' | 'manage'>('ai');
+  const [activeTab, setActiveTab] = useState<'ai' | 'manage' | 'stats'>('ai');
   const [topicInput, setTopicInput] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
@@ -59,6 +60,9 @@ export default function AdminDashboard({ onLogout }: { onLogout?: () => void }) 
   const [editingArticle, setEditingArticle] = useState<ArticleData | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
+  // Stats State
+  const [globalStats, setGlobalStats] = useState<{ totalVisits: number } | null>(null);
+
   const fetchArticles = async () => {
     setIsLoadingArticles(true);
     try {
@@ -72,9 +76,35 @@ export default function AdminDashboard({ onLogout }: { onLogout?: () => void }) 
     }
   };
 
+  const fetchStats = async () => {
+    try {
+      // Fetch global visits more efficiently
+      const globalDoc = await getDoc(doc(db, 'site_stats', 'global'));
+      if (globalDoc.exists()) {
+        setGlobalStats(globalDoc.data() as { totalVisits: number });
+      }
+
+      // Fetch all articles and sort by views in memory
+      const snapshot = await getDocs(collection(db, 'articles'));
+      const articles = snapshot.docs.map(doc => ({ 
+        id: doc.id, 
+        ...doc.data(),
+        views: doc.data().views || 0 // Ensure views defaults to 0
+      } as ArticleData));
+      
+      articles.sort((a, b) => (b.views || 0) - (a.views || 0));
+      setPublishedArticles(articles);
+      console.log("Stats fetched:", articles.length, "articles");
+    } catch (e) {
+      console.error("Fetch stats error:", e);
+    }
+  };
+
   useEffect(() => {
     if (activeTab === 'manage') {
       fetchArticles();
+    } else if (activeTab === 'stats') {
+      fetchStats();
     }
   }, [activeTab]);
 
@@ -167,6 +197,7 @@ export default function AdminDashboard({ onLogout }: { onLogout?: () => void }) 
         imageUrl: allUrlsToSave[0],
         imageUrls: allUrlsToSave,
         publishedAt: Date.now(), // Store as JS timestamp for easier sorting
+        views: 0,
       };
       
       console.log("Saving article to Firebase.");
@@ -246,6 +277,12 @@ export default function AdminDashboard({ onLogout }: { onLogout?: () => void }) 
             >
               <FileText size={14} className="inline mr-2 -mt-0.5" /> Data Manager
             </button>
+            <button 
+              onClick={() => setActiveTab('stats')}
+              className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-sm transition-colors ${activeTab === 'stats' ? 'bg-zinc-900 text-white' : 'text-zinc-500 hover:text-zinc-900'}`}
+            >
+              <BarChart3 size={14} className="inline mr-2 -mt-0.5" /> Statistics
+            </button>
           </div>
           {onLogout && (
             <button onClick={onLogout} className="text-zinc-400 hover:text-red-500 transition-colors" title="Disconnect">
@@ -255,7 +292,7 @@ export default function AdminDashboard({ onLogout }: { onLogout?: () => void }) 
         </div>
       </div>
 
-      {activeTab === 'ai' ? (
+      {activeTab === 'ai' && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <div className="md:col-span-1 space-y-8">
           <div className="bg-zinc-900 text-white p-8 rounded-sm">
@@ -400,7 +437,8 @@ export default function AdminDashboard({ onLogout }: { onLogout?: () => void }) 
           </div>
         </div>
       </div>
-      ) : (
+      )}
+      {activeTab === 'manage' && (
         <div className="bg-white p-8 rounded-sm border border-zinc-200">
           <div className="flex items-center justify-between mb-8 border-b border-zinc-200 pb-4">
             <h3 className="font-black uppercase tracking-[0.2em] text-[10px] flex items-center gap-2 text-zinc-900">
@@ -535,6 +573,73 @@ export default function AdminDashboard({ onLogout }: { onLogout?: () => void }) 
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'stats' && (
+        <div className="space-y-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-sm">
+              <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2 block">Site Sessions</span>
+              <div className="text-4xl font-serif italic text-white leading-none">{globalStats?.totalVisits || 0}</div>
+            </div>
+            <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-sm">
+              <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2 block">Articles Published</span>
+              <div className="text-4xl font-serif italic text-white leading-none">{publishedArticles.length}</div>
+            </div>
+            <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-sm">
+              <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2 block">Total Article Views</span>
+              <div className="text-4xl font-serif italic text-white leading-none">
+                {publishedArticles.reduce((acc, art) => acc + (art.views || 0), 0)}
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white border border-zinc-200 rounded-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-zinc-200 bg-zinc-50 flex justify-between items-center">
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-900">Articles Performance</h3>
+              <span className="text-[10px] text-zinc-400 uppercase font-bold tracking-widest italic">Sorted by impact</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-zinc-100 text-[10px] uppercase tracking-widest text-zinc-400 bg-zinc-50/50">
+                    <th className="px-6 py-4 font-black">Headline</th>
+                    <th className="px-6 py-4 font-black text-right">Datapoints (Views)</th>
+                    <th className="px-6 py-4 font-black text-right">Reach %</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-100">
+                  {publishedArticles.map(article => (
+                    <tr key={article.id} className="hover:bg-zinc-50 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="text-xs font-bold text-zinc-900 mb-1">{article.title}</div>
+                        <div className="text-[9px] text-zinc-400 font-mono uppercase">Reference: {article.id}</div>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2 text-zinc-900 font-bold text-sm">
+                          <Eye size={12} className="text-indigo-500" />
+                          {article.views || 0}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="text-xs font-black text-zinc-400">
+                          {globalStats?.totalVisits ? Math.round(((article.views || 0) / globalStats.totalVisits) * 100) : 0}%
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {publishedArticles.length === 0 && (
+                    <tr>
+                      <td colSpan={3} className="px-6 py-12 text-center text-zinc-400 text-xs italic">
+                        No statistical data available for analysis.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}

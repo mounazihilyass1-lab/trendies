@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, orderBy, getDocs } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, doc, setDoc, increment } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -45,6 +45,23 @@ export default function Home() {
       }
     }
     fetchArticles();
+
+    // Track site visits (once per session)
+    async function trackVisit() {
+      const hasVisited = sessionStorage.getItem('trendies_visited');
+      if (!hasVisited) {
+        try {
+          const statsRef = doc(db, 'site_stats', 'global');
+          await setDoc(statsRef, {
+            totalVisits: increment(1)
+          }, { merge: true });
+          sessionStorage.setItem('trendies_visited', 'true');
+        } catch (e) {
+          console.error("Failed to track visit", e);
+        }
+      }
+    }
+    trackVisit();
   }, []);
 
   // Compute unique categories and platforms

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, increment, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import Markdown from 'react-markdown';
 import { format } from 'date-fns';
@@ -33,6 +33,16 @@ export default function ArticleDetails() {
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           setArticle(docSnap.data() as Article);
+          
+          // Increment views in Firestore
+          try {
+            await updateDoc(docRef, {
+              views: increment(1)
+            });
+            console.log("View tracked successfully for article:", id);
+          } catch (trackErr) {
+            console.warn("Failed to track view (silently ignoring):", trackErr);
+          }
         }
       } catch (err) {
         console.error("Fetch article error", err);
@@ -41,6 +51,23 @@ export default function ArticleDetails() {
       }
     }
     fetchArticle();
+    
+    // Track site visits (once per session)
+    async function trackVisit() {
+      const hasVisited = sessionStorage.getItem('trendies_visited');
+      if (!hasVisited) {
+        try {
+          const statsRef = doc(db, 'site_stats', 'global');
+          await setDoc(statsRef, {
+            totalVisits: increment(1)
+          }, { merge: true });
+          sessionStorage.setItem('trendies_visited', 'true');
+        } catch (e) {
+          console.error("Failed to track visit", e);
+        }
+      }
+    }
+    trackVisit();
   }, [id]);
 
   useEffect(() => {
