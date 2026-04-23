@@ -19,33 +19,33 @@ export async function generateSuggestions(): Promise<string[]> {
   const ai = getAI();
   if (!ai) throw new Error("AI Service not configured: Please add GEMINI_API_KEY to your settings.");
 
-  const prompt = `Génère une liste de 5 sujets de tendances actuelles sur les réseaux sociaux (TikTok, Twitter, Instagram). 
-Utilise Google Search pour trouver des sujets RÉELS et RÉCENTS de moins de 24 heures.
-Sujets à privilégier : Pop culture, Tech, Viral trends.
-Réponds EXCLUSIVEMENT avec un tableau JSON de chaînes de caractères.`;
-  
-  const response = await ai.models.generateContent({
-    model: "gemini-1.5-flash",
-    contents: prompt,
-    config: {
-      tools: [{ googleSearch: {} }],
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.ARRAY,
-        items: {
-          type: Type.STRING
-        }
-      }
-    }
-  });
-
   try {
-    const text = response.text || "[]";
-    console.log("Suggestions raw response:", text);
-    return JSON.parse(text);
-  } catch (err) {
-    console.error("Failed to parse suggestions", err);
-    return [];
+    const model = ai.getGenerativeModel({ 
+      model: "gemini-1.5-flash",
+      generationConfig: {
+        responseMimeType: "application/json",
+      }
+    });
+
+    const prompt = `Génère une liste de 5 sujets de tendances actuelles MAJEURES sur les réseaux sociaux francophones (TikTok, Twitter, Instagram). 
+    Utilise tes outils de recherche pour trouver des événements réels de moins de 24h.
+    Retourne uniquement un tableau JSON de chaînes de caractères (ex: ["Sujet 1", "Sujet 2"]).`;
+    
+    const result = await model.generateContent({
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      tools: [{ googleSearch: {} } as any],
+    });
+
+    const response = await result.response;
+    const text = response.text();
+    console.log("AI Suggestions Response:", text);
+    
+    // Clean potential markdown blocks if AI didn't follow JSON only instruction
+    const cleanJson = text.replace(/```json|```/g, "").trim();
+    return JSON.parse(cleanJson);
+  } catch (err: any) {
+    console.error("AI Suggestions Error:", err);
+    throw new Error(`Erreur AI: ${err.message || "Impossible de générer les suggestions"}`);
   }
 }
 
@@ -63,60 +63,47 @@ export async function generateArticle(topic: string, imageBase64?: string, image
   const ai = getAI();
   if (!ai) throw new Error("AI Service not configured: Please add GEMINI_API_KEY to your settings.");
 
-  const parts: any[] = [];
-  
-  if (imageBase64 && imageMime) {
-    parts.push({
-      inlineData: {
-        data: imageBase64.split('base64,')[1] || imageBase64,
-        mimeType: imageMime
+  try {
+    const model = ai.getGenerativeModel({ 
+      model: "gemini-1.5-flash",
+      generationConfig: {
+        responseMimeType: "application/json",
       }
     });
-    parts.push({ text: `Analyse cette image et rédige un article journalistique complet et engageant (environ 600 mots) sur ce sujet : "${topic}".` });
-  } else {
-    parts.push({ text: `Rédige un article journalistique complet et engageant (environ 600 mots) sur le sujet tendance suivant trouvé sur les réseaux sociaux : "${topic}".` });
-  }
-  
-  parts.push({ text: `
-1. Utilise IMMÉDIATEMENT Google Search pour trouver des statistiques exactes, des actualités RÉCENTES et des informations pour enrichir dynamiquement le contenu.
-2. Le ton doit être moderne, adapté aux réseaux sociaux mais très professionnel.
-3. Le contenu (\`content\`) doit être formaté en Markdown.
-4. Extrait une courte introduction (\`summary\`).
-5. Détermine la catégorie principale (ex: Tech, Mode, Pop Culture, etc.).
-6. Liste les plateformes où cette tendance est populaire (ex: ["TikTok", "Twitter"]).
-7. Ajoute jusqu'à 5 mots-clés/hashtags pertinents (\`tags\`).
 
-CONTRAINTE LÉGALE STRICTE : Tu dois REFORMULER INTÉGRALEMENT tout le texte. Tu ne dois inclure AUCUN contenu sous droits d'auteur, ni plagier, copie-coller ou imiter directement les sources trouvées. Ton contenu doit être 100% original tout en s'appuyant sur les *faits* trouvés.`
-  });
-
-  const response = await ai.models.generateContent({
-    model: "gemini-1.5-flash",
-    contents: { parts },
-    config: {
-      tools: [{ googleSearch: {} }],
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          title: { type: Type.STRING, description: "Titre de l'article, impactant et clair." },
-          content: { type: Type.STRING, description: "Corps de l'article formaté en Markdown." },
-          summary: { type: Type.STRING, description: "Un résumé court de l'article." },
-          category: { type: Type.STRING, description: "Catégorie principale." },
-          platforms: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Ex: ['TikTok', 'Instagram']" },
-          tags: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Tags sous forme de texte simple." }
-        },
-        required: ["title", "content", "summary", "category", "platforms", "tags"]
-      }
+    const parts: any[] = [];
+    
+    if (imageBase64 && imageMime) {
+      parts.push({
+        inlineData: {
+          data: imageBase64.split('base64,')[1] || imageBase64,
+          mimeType: imageMime
+        }
+      });
+      parts.push({ text: `Analyse cette image et rédige un article journalistique complet sur ce sujet : "${topic}".` });
+    } else {
+      parts.push({ text: `Rédige un article journalistique complet sur le sujet tendance suivant : "${topic}".` });
     }
-  });
+    
+    parts.push({ text: `
+    Instructions Article:
+    1. Utilise Google Search pour des faits et actus RÉCENTES.
+    2. Format Markdown pour "content".
+    3. REFORMULE TOUT (Zéro Plagiat). 
+    4. Réponds en JSON suivant ce schéma: { title, content, summary, category, platforms: [], tags: [] }` 
+    });
 
-  try {
-    const text = response.text || "{}";
-    console.log("Article raw response:", text);
-    const data = JSON.parse(text);
-    return data as GeneratedArticle;
-  } catch (err) {
-    console.error("Failed to generate article", err);
-    throw new Error("Erreur de format depuis l'IA.");
+    const result = await model.generateContent({
+      contents: [{ role: "user", parts }],
+      tools: [{ googleSearch: {} } as any],
+    });
+
+    const response = await result.response;
+    const text = response.text();
+    const cleanJson = text.replace(/```json|```/g, "").trim();
+    return JSON.parse(cleanJson) as GeneratedArticle;
+  } catch (err: any) {
+    console.error("AI Article Error:", err);
+    throw new Error(`Erreur AI: ${err.message || "Impossible de rédiger l'article"}`);
   }
 }
