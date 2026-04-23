@@ -7,7 +7,7 @@ function getAI() {
   if (!aiInstance) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
-      console.warn("GEMINI_API_KEY is missing. AI features will be disabled. Check your environment variables.");
+      console.warn("GEMINI_API_KEY is missing. Please add it to your project settings/environment variables.");
       return null;
     }
     aiInstance = new GoogleGenAI({ apiKey });
@@ -17,7 +17,7 @@ function getAI() {
 
 export async function generateSuggestions(): Promise<string[]> {
   const ai = getAI();
-  if (!ai) throw new Error("AI Service not configured.");
+  if (!ai) throw new Error("AI Service not configured: Please add GEMINI_API_KEY to your settings.");
 
   const prompt = `Génère une liste de 5 sujets de tendances actuelles sur les réseaux sociaux (TikTok, Twitter, Instagram). 
 Utilise Google Search pour trouver des sujets RÉELS et RÉCENTS de moins de 24 heures.
@@ -25,7 +25,7 @@ Sujets à privilégier : Pop culture, Tech, Viral trends.
 Réponds EXCLUSIVEMENT avec un tableau JSON de chaînes de caractères.`;
   
   const response = await ai.models.generateContent({
-    model: "gemini-2.0-flash",
+    model: "gemini-1.5-flash",
     contents: prompt,
     config: {
       tools: [{ googleSearch: {} }],
@@ -61,7 +61,7 @@ export interface GeneratedArticle {
 
 export async function generateArticle(topic: string, imageBase64?: string, imageMime?: string): Promise<GeneratedArticle> {
   const ai = getAI();
-  if (!ai) throw new Error("AI Service not configured.");
+  if (!ai) throw new Error("AI Service not configured: Please add GEMINI_API_KEY to your settings.");
 
   const parts: any[] = [];
   
@@ -90,7 +90,7 @@ CONTRAINTE LÉGALE STRICTE : Tu dois REFORMULER INTÉGRALEMENT tout le texte. Tu
   });
 
   const response = await ai.models.generateContent({
-    model: "gemini-2.0-flash",
+    model: "gemini-1.5-flash",
     contents: { parts },
     config: {
       tools: [{ googleSearch: {} }],

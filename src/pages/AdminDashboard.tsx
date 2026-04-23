@@ -168,9 +168,9 @@ export default function AdminDashboard({ onLogout }: { onLogout?: () => void }) 
     try {
       const result = await generateSuggestions();
       setSuggestions(result);
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      alert("Erreur lors de la génération des suggestions.");
+      alert(error.message || "Erreur lors de la génération des suggestions.");
     } finally {
       setIsLoadingSuggestions(false);
     }
@@ -213,9 +213,9 @@ export default function AdminDashboard({ onLogout }: { onLogout?: () => void }) 
         setTopicInput('');
       }
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating article:", error);
-      alert("Erreur lors de la création de l'article. Consultez la console.");
+      alert(error.message || "Erreur lors de la création de l'article.");
       return false;
     } finally {
       setGeneratingArticle(null);
