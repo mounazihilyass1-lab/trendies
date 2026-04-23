@@ -1,9 +1,24 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
-// Initialize the API
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+// Lazy-initialize the API to prevent crashes if the key is missing during build or startup
+let aiInstance: GoogleGenAI | null = null;
+
+function getAI() {
+  if (!aiInstance) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
+      console.warn("GEMINI_API_KEY is missing. AI features will be disabled. Check your environment variables.");
+      return null;
+    }
+    aiInstance = new GoogleGenAI({ apiKey });
+  }
+  return aiInstance;
+}
 
 export async function generateSuggestions(): Promise<string[]> {
+  const ai = getAI();
+  if (!ai) throw new Error("AI Service not configured.");
+
   const prompt = "Quelles sont les dernières tendances majeures sur les réseaux sociaux francophones (TikTok, Twitter, Instagram) aujourd'hui ? Veuillez consulter Google Search et extraire 5 sujets intéressants qui méritent un article.";
   
   const response = await ai.models.generateContent({
@@ -42,6 +57,9 @@ export interface GeneratedArticle {
 }
 
 export async function generateArticle(topic: string, imageBase64?: string, imageMime?: string): Promise<GeneratedArticle> {
+  const ai = getAI();
+  if (!ai) throw new Error("AI Service not configured.");
+
   const parts: any[] = [];
   
   if (imageBase64 && imageMime) {
