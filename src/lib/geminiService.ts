@@ -19,10 +19,13 @@ export async function generateSuggestions(): Promise<string[]> {
   const ai = getAI();
   if (!ai) throw new Error("AI Service not configured.");
 
-  const prompt = "Quelles sont les dernières tendances majeures sur les réseaux sociaux francophones (TikTok, Twitter, Instagram) aujourd'hui ? Veuillez consulter Google Search et extraire 5 sujets intéressants qui méritent un article.";
+  const prompt = `Génère une liste de 5 sujets de tendances actuelles sur les réseaux sociaux (TikTok, Twitter, Instagram). 
+Utilise Google Search pour trouver des sujets RÉELS et RÉCENTS de moins de 24 heures.
+Sujets à privilégier : Pop culture, Tech, Viral trends.
+Réponds EXCLUSIVEMENT avec un tableau JSON de chaînes de caractères.`;
   
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: "gemini-2.0-flash",
     contents: prompt,
     config: {
       tools: [{ googleSearch: {} }],
@@ -31,14 +34,14 @@ export async function generateSuggestions(): Promise<string[]> {
         type: Type.ARRAY,
         items: {
           type: Type.STRING
-        },
-        description: "Un tableau de 5 chaînes de caractères représentant des sujets de tendances."
+        }
       }
     }
   });
 
   try {
     const text = response.text || "[]";
+    console.log("Suggestions raw response:", text);
     return JSON.parse(text);
   } catch (err) {
     console.error("Failed to parse suggestions", err);
@@ -87,7 +90,7 @@ CONTRAINTE LÉGALE STRICTE : Tu dois REFORMULER INTÉGRALEMENT tout le texte. Tu
   });
 
   const response = await ai.models.generateContent({
-    model: "gemini-3.1-pro-preview",
+    model: "gemini-2.0-flash",
     contents: { parts },
     config: {
       tools: [{ googleSearch: {} }],
@@ -109,6 +112,7 @@ CONTRAINTE LÉGALE STRICTE : Tu dois REFORMULER INTÉGRALEMENT tout le texte. Tu
 
   try {
     const text = response.text || "{}";
+    console.log("Article raw response:", text);
     const data = JSON.parse(text);
     return data as GeneratedArticle;
   } catch (err) {

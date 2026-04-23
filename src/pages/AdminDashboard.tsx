@@ -399,9 +399,11 @@ export default function AdminDashboard({ onLogout }: { onLogout?: () => void }) 
                 </p>
                 <button
                   onClick={fetchSuggestions}
-                  className="bg-zinc-900 text-white px-6 py-3 rounded-sm text-[10px] uppercase font-black tracking-widest hover:bg-indigo-600 transition-colors"
+                  disabled={isLoadingSuggestions}
+                  className="bg-zinc-900 text-white px-6 py-3 rounded-sm text-[10px] uppercase font-black tracking-widest hover:bg-indigo-600 disabled:opacity-50 transition-colors flex items-center gap-2"
                 >
-                  Scan the Web Now
+                  {isLoadingSuggestions ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                  {isLoadingSuggestions ? "Scanning..." : "Scan the Web Now"}
                 </button>
               </div>
             ) : null}
